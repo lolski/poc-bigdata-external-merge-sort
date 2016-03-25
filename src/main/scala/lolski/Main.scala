@@ -39,7 +39,7 @@ object Main {
 
   def prepareInput(in: String): Unit = {
     println("writing input...")
-    Helper.writeReversed(1, 300000, in)
+    Helper.writeReversed(1, 40, in)
     println("done.")
   }
 

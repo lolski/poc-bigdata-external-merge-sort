@@ -11,15 +11,12 @@ object Sorter {
   def sort(in: String, tmp: String, out: String, linesPerChunk: Int, parallelism: Int): Unit = {
     // split file into n
     val rawChunks = split(in, linesPerChunk, tmp)
-    val sortedChunks = rawChunks map { chunk =>
-      val lines = Helper.readLines(chunk).toArray.map(_.toInt)
-      lines.sorted
-    }
 
-    // write to chunk
-    sortedChunks foreach { chunk =>
-      Helper.overwrite(out) { writer =>
-        chunk foreach { line =>
+    rawChunks foreach { chunk =>
+      val lines = Helper.readLines(chunk).toArray.map(_.toInt)
+      val sorted = lines.sorted
+      Helper.overwrite(chunk) { writer =>
+        sorted foreach { line =>
           writer.write(s"$line")
           writer.newLine()
         }
