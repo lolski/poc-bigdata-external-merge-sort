@@ -10,14 +10,16 @@ object Helper {
   def writeReversed(from: Int, to: Int, path: String): Unit = overwrite(path) { in =>
     val numbers = descOrder(from, to)
     numbers.foreach { e =>
-      in.write(s"$e\n")
+      in.write(s"$e")
+      in.newLine()
     }
   }
 
   def writeShuffled(from: Int, to: Int, path: String): Unit = overwrite(path) { in =>
     val numbers = shuffledOrder(from, to)
     numbers.foreach { e =>
-      in.write(s"$e\n")
+      in.write(s"$e")
+      in.newLine()
     }
   }
 
@@ -30,27 +32,49 @@ object Helper {
   }
 
   // generating number helpers
-  def shuffledOrder(from: Int, to: Int) = scala.util.Random.shuffle(ascOrder(from, to))
+  def shuffledOrder(start: Int, end: Int): Seq[Int] = scala.util.Random.shuffle(ascOrder(start, end))
 
-  def ascOrder(from: Int, to: Int) = from to to
+  def ascOrder(start: Int, end: Int): Seq[Int] = start to end
 
-  def descOrder(from: Int, to: Int) = ascOrder(from, to).reverseIterator
+  def descOrder(start: Int, end: Int): Seq[Int] = end to start by -1
 
   // file writing helpers
   def overwrite[T](path: String)(block: BufferedWriter => T): T = {
     Files.deleteIfExists(Paths.get(path))
+    append(path) { in =>
+      block(in)
+    }
+  }
+
+  def append[T](path: String)(block: BufferedWriter => T): T = {
     withWriter(new BufferedWriter(new FileWriter(path, true))) { in =>
       block(in)
     }
   }
 
-  def withWriter[T](res: BufferedWriter)(block: BufferedWriter=> T) = {
+  def withWriter[T](res: BufferedWriter)(block: BufferedWriter=> T): T = {
     try block(res)
     finally res.close()
   }
 
-  def readLines(path: String) = {
+  // TODO: add close method
+  def readLines(path: String): Iterator[String] = {
     val in = io.Source.fromFile(path)
     in.getLines()
+  }
+
+  def writeSeq(numbers: Seq[String], out: String, shouldOverwrite: Boolean): String = {
+    // pick overwrite or append function based on shouldOverwrite flag
+    def fn[T]: String => (BufferedWriter => T) => T =
+      if (shouldOverwrite) overwrite _ else append _
+
+    fn(out) { writer =>
+      numbers foreach { line =>
+        writer.write(line)
+        writer.newLine()
+      }
+    }
+
+    out
   }
 }
