@@ -39,7 +39,7 @@ object Main {
 
   def prepareInput(in: String): Unit = {
     println("writing input...")
-    Helper.writeReversed(1, 40, in)
+    IO.writeShuffled(1, 4000, in)
     println("done.")
   }
 
@@ -50,6 +50,7 @@ object Main {
   }
 
   def doVerify(in: String): Unit = {
-    println(s"verification: is in asc order: ${Helper.isAscOrdered(in)}")
+    val it = IO.readLines(in)
+    println(s"verification: is in asc order: ${NumGenerator.isAscOrdered(it)}")
   }
 }
