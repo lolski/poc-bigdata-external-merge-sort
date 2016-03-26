@@ -2,7 +2,9 @@ package lolski
 
 import java.io.{BufferedInputStream, FileWriter}
 import java.nio.file.{Paths, Files}
-import scala.concurrent.ExecutionContext.Implicits.global
+import java.util.concurrent.ExecutorService
+
+import scala.concurrent.{Future, ExecutionContext}
 
 /**
   * Created by lolski on 3/24/16.
@@ -12,7 +14,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
   *  - input from file, I/O needed
   *
   * Design decisions:
-  *  - external sorting is used for input containing 300 million integers
+  *  - Output is written to a new file instead of overwriting the input.
+  *    The reason is to prevent losing / corrupting the input file in case of failure (e.g., sorting crashed while in the middle of writing)
+  *  - External sorting is used for input containing 300 million integers
   *    - Minimize number of I/O accesses (e.g., by minimizing the number of reading / writing pass)
   *    - Optimize I/O using buffering and / or NIO
   *    - Minimize memory buffer
@@ -31,26 +35,30 @@ object Main {
 
   // sorting params
   val start = 1
-  val stop = 4000
-  val linesPerChunk = 200
-  val parallelism  = 1
+  val stop = 10000000
+  val linesPerChunk = 10000
+  val parallelism  = 2
+
+  // val
+  implicit val parallelSortEC = ExecutionContext.fromExecutor(java.util.concurrent.Executors.newFixedThreadPool(parallelism))
 
   def main(args: Array[String]): Unit = {
     doWriteInput(in)
-    doSort(in, tmp, out)
-    doVerify(out)
+    doSort(in, tmp, out) map { _ =>
+      doVerify(out)
+    }
   }
 
   def doWriteInput(in: String): Unit = {
-    println("writing input...")
+    println("writing input started...")
     IO.writeShuffled(start, stop, in)
-    println("done.")
+    println("writing input done.")
   }
 
-  def doSort(in: String, tmp: String, out: String): Unit = {
-    println("starting sort procedure...")
-    Sorter.sort(in, tmp, out, linesPerChunk, parallelism)
-    println("done.")
+  def doSort(in: String, tmp: String, out: String): Future[Unit] = {
+    println("sort procedure started...")
+    val async = Sorter.sort(in, tmp, out, linesPerChunk)
+    async map { _ => println("sort procedure done.") }
   }
 
   def doVerify(in: String): Unit = {

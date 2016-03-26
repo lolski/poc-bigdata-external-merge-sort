@@ -1,31 +1,37 @@
 package lolski
 
+import java.util.PriorityQueue
+
 import scala.collection._
+import scala.concurrent.{Future, ExecutionContext}
 
 /**
   * Created by lolski on 3/25/16.
   */
 
 object Sorter {
-  def sort(in: String, tmp: String, out: String, linesPerChunk: Int, parallelism: Int): String = {
-    import Timer.elapsed
+  def sort(in: String, tmp: String, out: String, linesPerChunk: Int)
+      (implicit ec: ExecutionContext): Future[String] = {
+    import Timer.{elapsed, elapsedAsync}
 
     // split file into n chunks
     val (chunks, t1) = elapsed(splitStep(in, linesPerChunk, tmp)) // 1 full pass to read and write
     println(s"splitting took ${t1}ms / ${t1 / 1000.0}s")
 
     // sort each chunk locally
-    val (sortedChunks, t2) = elapsed(sortStep(chunks))
-    println(s"local sorting took ${t2}ms / ${t2 / 1000.0}s")
+    val sortAsync = elapsedAsync(sortStep(chunks))
+    sortAsync onSuccess { case (_, t2) => println(s"local sorting took ${t2}ms / ${t2 / 1000.0}s") }
 
     // merge sorted chunks using k-way merge algorithm
-    val (out_, t3) = elapsed(mergeStep(sortedChunks, out, linesPerChunk))  // how many reads & writes?
-    println(s"merging took ${t3}ms / ${t3 / 1000.0}s")
+    val out_ = sortAsync map { case (sorted, _) =>
+      elapsed(mergeStep(sorted, out, linesPerChunk / sorted.size)) // how many reads & writes?
+    }
+    out_ onSuccess { case (_, t3) => println(s"merging took ${t3}ms / ${t3 / 1000.0}s") }
 
     // clean up
-    IO.delete(chunks)
+    out_ onSuccess { case _ => IO.delete(chunks) }
 
-    out_
+    out_ map { case (path, _) => path }
   }
 
   def splitStep(in: String, linesPerChunk: Int, tmp: String): Seq[String] = {
@@ -43,15 +49,19 @@ object Sorter {
     res
   }
 
-  def sortStep(chunks: Seq[String]): Seq[String] = {
+  def sortStep(chunks: Seq[String])(implicit ec: ExecutionContext): Future[Seq[String]] = {
     // sort in memory
     // must limit the number of instance being processed concurrently to prevent OutOfMemoryException
-    chunks map { path =>
-      val (handle, lines) = IO.readLines(path) // 1 full pass to read
-      val it = lines.toArray.map(_.toInt) // read
-      handle.close() // clean up
-      IO.writeSeq(it.sorted.map(_.toString), path, true) // 1 pass to write
-    }
+    val async  = chunks map { path => Future(sortChunk(path)) }
+    val joined = Future.sequence(async)
+    joined
+  }
+
+  def sortChunk(path: String): String = {
+    val (handle, lines) = IO.readLines(path) // 1 full pass to read
+    val it = lines.toArray.map(_.toInt) // read
+    handle.close() // clean up
+    IO.writeSeq(it.sorted.map(_.toString), path, true) // 1 pass to write
   }
 
   // k-way merging
@@ -73,6 +83,8 @@ object Sorter {
     val pQueue  =
       new mutable.PriorityQueue[(Int, Int)]()(Ordering.by { case (v, i) => -v}) // order by value, ascending
 
+//    val pQueue2 =
+//      new PriorityQueue[(Int, Int)](100)
     // read first line from all chunks into (value, index)
     val (lines, io1) = elapsed {
       readers flatMap { case (h, it) =>
@@ -85,6 +97,7 @@ object Sorter {
     val (_, s1) = elapsed {
       lines foreach { e =>
         pQueue.enqueue(e)
+//        pQueue2.add(e)
       } // sort in memory using priority queue
     }
     elapsedSorting += s1
@@ -129,8 +142,8 @@ object Sorter {
       }
     }
 
-    println(s"sorting took ${elapsedSorting}ms / ${elapsedSorting / 1000.0}s")
-    println(s"IO took ${elapsedIO}ms / ${elapsedIO / 1000.0}s")
+    println(s"merging - CPU operations took ${elapsedSorting}ms / ${elapsedSorting / 1000.0}s")
+    println(s"merging - IO operations took ${elapsedIO}ms / ${elapsedIO / 1000.0}s")
     out
   }
 }
