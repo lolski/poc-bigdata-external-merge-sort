@@ -1,6 +1,6 @@
 package lolski
 
-import java.io.{FileWriter, BufferedWriter}
+import java.io.{FileReader, BufferedReader, FileWriter, BufferedWriter}
 import java.nio.file.{Paths, Files}
 
 /**
@@ -8,14 +8,6 @@ import java.nio.file.{Paths, Files}
   */
 
 object IO {
-  def writeReversed(from: Int, to: Int, path: String): Unit = overwrite(path) { in =>
-    val numbers = NumGenerator.descOrder(from, to)
-    numbers.foreach { e =>
-      in.write(s"$e")
-      in.newLine()
-    }
-  }
-
   def writeShuffled(from: Int, to: Int, path: String): Unit = overwrite(path) { in =>
     val numbers = NumGenerator.shuffledOrder(from, to)
     numbers.foreach { e =>
@@ -23,6 +15,22 @@ object IO {
       in.newLine()
     }
   }
+
+  def writeSeq(numbers: Seq[String], out: String, shouldOverwrite: Boolean): String = {
+    // pick overwrite or append function based on shouldOverwrite flag
+    def fn[T]: String => (BufferedWriter => T) => T =
+      if (shouldOverwrite) overwrite _ else append _
+
+    fn(out) { writer =>
+      numbers foreach { line =>
+        writer.write(line)
+        writer.newLine()
+      }
+    }
+
+    out
+  }
+
   // file writing helpers
   def overwrite[T](path: String)(block: BufferedWriter => T): T = {
     Files.deleteIfExists(Paths.get(path))
@@ -42,24 +50,11 @@ object IO {
     finally res.close()
   }
 
-  // TODO: add close method
-  def readLines(path: String): Iterator[String] = {
-    val in = io.Source.fromFile(path)
-    in.getLines()
+  def readLines(path: String): (BufferedReader, Iterator[String]) = {
+    val reader = new BufferedReader(new FileReader(path))
+    (reader, Iterator.continually(reader.readLine()).takeWhile(_!=null))
   }
 
-  def writeSeq(numbers: Seq[String], out: String, shouldOverwrite: Boolean): String = {
-    // pick overwrite or append function based on shouldOverwrite flag
-    def fn[T]: String => (BufferedWriter => T) => T =
-      if (shouldOverwrite) overwrite _ else append _
 
-    fn(out) { writer =>
-      numbers foreach { line =>
-        writer.write(line)
-        writer.newLine()
-      }
-    }
-
-    out
-  }
+  def delete(paths: Seq[String]): Unit = paths foreach { p => Files.delete(Paths.get(p))}
 }

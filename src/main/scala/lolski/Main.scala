@@ -14,15 +14,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
   * Design decisions:
   *  - external sorting is used for input containing 300 million integers
   *    - Minimize number of I/O accesses (e.g., by minimizing the number of reading / writing pass)
-  *    - Optimize I/O using buffering and NIO
+  *    - Optimize I/O using buffering and / or NIO
   *    - Minimize memory buffer
   *    - Maximize cache efficiency
+  *    - Minimize open file at a time
   *
   * Implementation:
   *  - we decide on using external merge sort
-  *
-  *
-  *
   */
 
 object Main {
@@ -32,25 +30,26 @@ object Main {
     val tmp = "/Users/lolski/Playground/tremorvideo-problem1-part1/in"
     val in = s"${tmp}/in.txt"
     val out = s"${tmp}/out.txt"
-    prepareInput(in)
+    doWriteInput(in)
     doSort(in, tmp, out)
     doVerify(out)
   }
 
-  def prepareInput(in: String): Unit = {
+  def doWriteInput(in: String): Unit = {
     println("writing input...")
-    IO.writeShuffled(1, 4000, in)
+    IO.writeShuffled(1, 15, in)
     println("done.")
   }
 
   def doSort(in: String, tmp: String, out: String): Unit = {
     println("starting sort procedure...")
-    Sorter.sort(in, tmp, out, 1, 1)
+    Sorter.sort(in, tmp, out, 5, 1)
     println("done.")
   }
 
   def doVerify(in: String): Unit = {
-    val it = IO.readLines(in)
+    val (h, it) = IO.readLines(in)
     println(s"verification: is in asc order: ${NumGenerator.isAscOrdered(it)}")
+    h.close()
   }
 }
