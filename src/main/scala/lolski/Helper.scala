@@ -27,7 +27,7 @@ object Helper {
   def isAscOrdered(path: String): Boolean = {
     val in = readLines(path)
     val sliding = in.sliding(2, 1)
-    val sorted = sliding forall { case Seq(prev, cur) => prev < cur }
+    val sorted = sliding forall { case Seq(prev, cur) => prev.toInt < cur.toInt }
     sorted
   }
 

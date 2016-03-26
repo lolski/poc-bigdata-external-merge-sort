@@ -8,7 +8,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
   * Created by lolski on 3/24/16.
   * Problem set 1, part 1
   * Main assumptions:
-  *  - input size is 300 million, ∫therefore won't fit in main memory
+  *  - input size is 300 million integer, requires 9.6GB space excluding overheads (int is 32 bit). won't fit in main memory
   *  - input from file, I/O needed
   *
   * Design decisions:
