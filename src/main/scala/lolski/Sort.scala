@@ -8,7 +8,7 @@ import scala.collection._
 
 object Sorter {
   def sort(in: String, tmp: String, out: String, linesPerChunk: Int, parallelism: Int): String = {
-    import Timer._
+    import Timer.elapsed
 
     // split file into n
     val (chunks, t1) = elapsed(splitStep(in, linesPerChunk, tmp)) // 1 full pass to read and write
@@ -23,7 +23,7 @@ object Sorter {
     println(s"merging took ${t3}ms / ${t3 / 1000.0}s")
 
     // clean up
-//    IO.delete(chunks)
+    IO.delete(chunks)
 
     out_
   }
@@ -56,66 +56,80 @@ object Sorter {
 
   def mergeStep(chunks: Seq[String], out: String, linesPerChunk: Int): String = {
     // instrumentation
-    var sortingMillis  = 0L
-    var ioAccessMillis = 0L
+    import Timer.elapsed
+    var elapsedSorting = 0L
+    var elapsedIO      = 0L
 
     // initialize variables - priority queue, file readers
-    val pQueue  = new mutable.PriorityQueue[(Int, Int)]()(Ordering.by { case (v, i) => -v}) // order by value, ascending
     val readers = chunks.zipWithIndex map { case (chunk, id) =>
       val (handle, it) = IO.readLines(chunk)
       // chunk id is used to idenfity which chunk reader to advance after dequeing an element from the queue
       val indexed = it map { e => (e, id) }
       (handle, indexed)
     } toVector
-    var remaining = readers.size
+    val totalSize = readers.size
+    var closedReaders = mutable.Set[Int]()
+    val pQueue  =
+      new mutable.PriorityQueue[(Int, Int)]()(Ordering.by { case (v, i) => -v}) // order by value, ascending
 
     // read first line from all chunks into (value, index)
-    val (lines, io1) = Timer.elapsed {
+    val (lines, io1) = elapsed {
       readers flatMap { case (h, it) =>
         val tmp = it.take(linesPerChunk).map { case (v, i) => (v.toInt, i) }
         tmp toSeq
       }
     }
+    elapsedIO += io1
 
-    ioAccessMillis += io1
-
-    val (_, s1) = Timer.elapsed(
+    val (_, s1) = elapsed {
       lines foreach { e =>
-        pQueue.enqueue(e) }) // sort in memory using priority queue
-    sortingMillis += s1
+        pQueue.enqueue(e)
+      } // sort in memory using priority queue
+    }
+    elapsedSorting += s1
 
     IO.overwrite(out) { writer =>
-      while (remaining > 0 || pQueue.nonEmpty) {
-        val ((v1, i1), s2) = Timer.elapsed(pQueue.dequeue())
-        sortingMillis += s2
+      while (closedReaders.size < totalSize || pQueue.nonEmpty) {
+        val ((v1, i1), s2) = elapsed(pQueue.dequeue())
+        elapsedSorting += s2
 
-        val (_, io2) = Timer.elapsed {
+        // write to out
+        val (_, io2) = elapsed {
           writer.write(s"$v1")
           writer.newLine()
         }
-        ioAccessMillis += io2
+        elapsedIO += io2
 
-        val (next, io3) = Timer.elapsed {
-          val a = readers(i1)._2
-          val b = a.take(linesPerChunk)
-          val c = b.map { case (v, i) => (v.toInt, i) }
-          val d = c.toSeq
-          d
+        val (next, io3) = elapsed {
+          readers(i1)
+            ._2
+            .take(linesPerChunk)
+            .map { case (v, i) => (v.toInt, i) }
+            .toSeq
         }
-        ioAccessMillis += io3
+        elapsedIO += io3
 
-        val (_, s3) = Timer.elapsed(next foreach { e => pQueue.enqueue(e) })
-        sortingMillis += s3
+        val (_, s3) = elapsed(next foreach { e => pQueue.enqueue(e) })
+        elapsedSorting += s3
 
-        if (readers(i1)._2.isEmpty) {
-          readers(i1)._1.close()
-          remaining -= 1
+        val it     = readers(i1)._2
+        val handle = readers(i1)._1
+        if (it.isEmpty) {
+          // close reader and put the id in closedReaders set
+          val alreadyClosed = closedReaders.contains(i1)
+          if (!alreadyClosed) {
+            handle.close()
+            closedReaders += i1
+          }
+          else {
+            // do nothing, reader is already closed
+          }
         }
       }
     }
 
-    println(s"sorting took ${sortingMillis}ms / ${sortingMillis / 1000.0}s")
-    println(s"IO took ${ioAccessMillis}ms / ${ioAccessMillis / 1000.0}s")
+    println(s"sorting took ${elapsedSorting}ms / ${elapsedSorting / 1000.0}s")
+    println(s"IO took ${elapsedIO}ms / ${elapsedIO / 1000.0}s")
     out
   }
 }

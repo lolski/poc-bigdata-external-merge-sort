@@ -31,8 +31,8 @@ object Main {
 
   // sorting params
   val start = 1
-  val stop = 20000
-  val linesPerChunk = 1000
+  val stop = 4000
+  val linesPerChunk = 200
   val parallelism  = 1
 
   def main(args: Array[String]): Unit = {
