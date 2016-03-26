@@ -24,12 +24,18 @@ import scala.concurrent.ExecutionContext.Implicits.global
   */
 
 object Main {
+  // input
+  val tmp = "/Users/lolski/Playground/tremorvideo-problem1-part1/in"
+  val in = s"${tmp}/in.txt"
+  val out = s"${tmp}/out.txt"
+
+  // sorting params
+  val start = 1
+  val stop = 20000
+  val linesPerChunk = 1000
+  val parallelism  = 1
 
   def main(args: Array[String]): Unit = {
-    // input
-    val tmp = "/Users/lolski/Playground/tremorvideo-problem1-part1/in"
-    val in = s"${tmp}/in.txt"
-    val out = s"${tmp}/out.txt"
     doWriteInput(in)
     doSort(in, tmp, out)
     doVerify(out)
@@ -37,19 +43,20 @@ object Main {
 
   def doWriteInput(in: String): Unit = {
     println("writing input...")
-    IO.writeShuffled(1, 15, in)
+    IO.writeShuffled(start, stop, in)
     println("done.")
   }
 
   def doSort(in: String, tmp: String, out: String): Unit = {
     println("starting sort procedure...")
-    Sorter.sort(in, tmp, out, 5, 1)
+    Sorter.sort(in, tmp, out, linesPerChunk, parallelism)
     println("done.")
   }
 
   def doVerify(in: String): Unit = {
     val (h, it) = IO.readLines(in)
-    println(s"verification: is in asc order: ${NumGenerator.isAscOrdered(it)}")
+    val ascending = NumGenerator.isAscOrdered(it)
+    println(s"verify if output is in ascending order: ${ascending}")
     h.close()
   }
 }

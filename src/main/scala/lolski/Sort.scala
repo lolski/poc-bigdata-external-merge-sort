@@ -56,15 +56,16 @@ object Sorter {
 
   def mergeStep(chunks: Seq[String], out: String, linesPerChunk: Int): String = {
     // instrumentation
-    var sorting      = 0L
-    var ioAccess     = 0L
+    var sortingMillis  = 0L
+    var ioAccessMillis = 0L
 
     // initialize variables - priority queue, file readers
-    val queue = new mutable.PriorityQueue[(Int, Int)]()(Ordering.by { case (v, i) => -v}) // order by value, ascending
-    val readers = chunks map { chunk =>
-      val (h, it) = IO.readLines(chunk)
-      val indexed = it.zipWithIndex // add index to help merging
-      (h, indexed)
+    val pQueue  = new mutable.PriorityQueue[(Int, Int)]()(Ordering.by { case (v, i) => -v}) // order by value, ascending
+    val readers = chunks.zipWithIndex map { case (chunk, id) =>
+      val (handle, it) = IO.readLines(chunk)
+      // chunk id is used to idenfity which chunk reader to advance after dequeing an element from the queue
+      val indexed = it map { e => (e, id) }
+      (handle, indexed)
     } toVector
     var remaining = readers.size
 
@@ -76,21 +77,23 @@ object Sorter {
       }
     }
 
-    ioAccess += io1
+    ioAccessMillis += io1
 
-    val (_, s1) = Timer.elapsed(lines foreach { e => queue.enqueue(e) }) // sort in memory using priority queue
-    sorting += s1
+    val (_, s1) = Timer.elapsed(
+      lines foreach { e =>
+        pQueue.enqueue(e) }) // sort in memory using priority queue
+    sortingMillis += s1
 
     IO.overwrite(out) { writer =>
-      while (remaining > 0 || queue.nonEmpty) {
-        val ((v1, i1), s2) = Timer.elapsed(queue.dequeue())
-        sorting += s2
+      while (remaining > 0 || pQueue.nonEmpty) {
+        val ((v1, i1), s2) = Timer.elapsed(pQueue.dequeue())
+        sortingMillis += s2
 
         val (_, io2) = Timer.elapsed {
           writer.write(s"$v1")
           writer.newLine()
         }
-        ioAccess += io2
+        ioAccessMillis += io2
 
         val (next, io3) = Timer.elapsed {
           val a = readers(i1)._2
@@ -99,10 +102,10 @@ object Sorter {
           val d = c.toSeq
           d
         }
-        ioAccess += io3
+        ioAccessMillis += io3
 
-        val (_, s3) = Timer.elapsed(next foreach { e => queue.enqueue(e) })
-        sorting += s3
+        val (_, s3) = Timer.elapsed(next foreach { e => pQueue.enqueue(e) })
+        sortingMillis += s3
 
         if (readers(i1)._2.isEmpty) {
           readers(i1)._1.close()
@@ -111,8 +114,8 @@ object Sorter {
       }
     }
 
-    println(s"sorting took ${sorting}ms / ${sorting / 1000.0}s")
-    println(s"IO took ${ioAccess}ms / ${ioAccess / 1000.0}s")
+    println(s"sorting took ${sortingMillis}ms / ${sortingMillis / 1000.0}s")
+    println(s"IO took ${ioAccessMillis}ms / ${ioAccessMillis / 1000.0}s")
     out
   }
 }
