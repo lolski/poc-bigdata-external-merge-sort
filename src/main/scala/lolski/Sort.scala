@@ -10,15 +10,15 @@ object Sorter {
   def sort(in: String, tmp: String, out: String, linesPerChunk: Int, parallelism: Int): String = {
     import Timer.elapsed
 
-    // split file into n
+    // split file into n chunks
     val (chunks, t1) = elapsed(splitStep(in, linesPerChunk, tmp)) // 1 full pass to read and write
     println(s"splitting took ${t1}ms / ${t1 / 1000.0}s")
 
-    // sort
+    // sort each chunk locally
     val (sortedChunks, t2) = elapsed(sortStep(chunks))
     println(s"local sorting took ${t2}ms / ${t2 / 1000.0}s")
 
-    // merge
+    // merge sorted chunks using k-way merge algorithm
     val (out_, t3) = elapsed(mergeStep(sortedChunks, out, linesPerChunk))  // how many reads & writes?
     println(s"merging took ${t3}ms / ${t3 / 1000.0}s")
 
@@ -54,6 +54,7 @@ object Sorter {
     }
   }
 
+  // k-way merging
   def mergeStep(chunks: Seq[String], out: String, linesPerChunk: Int): String = {
     // instrumentation
     import Timer.elapsed
