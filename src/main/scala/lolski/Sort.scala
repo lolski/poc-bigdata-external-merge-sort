@@ -80,11 +80,8 @@ object Sorter {
     } toVector
     val totalSize = readers.size
     var closedReaders = mutable.Set[Int]()
-    val pQueue  =
-      new mutable.PriorityQueue[(Int, Int)]()(Ordering.by { case (v, i) => -v}) // order by value, ascending
-
-//    val pQueue2 =
-//      new PriorityQueue[(Int, Int)](100)
+    val pQueue  = new ScalaQueue[(Int, Int)](Ordering.by { case (v, i) => -v})
+//    val pQueue  = new JavaQueue[(Int, Int)]()
     // read first line from all chunks into (value, index)
     val (lines, io1) = elapsed {
       readers flatMap { case (h, it) =>
@@ -97,13 +94,12 @@ object Sorter {
     val (_, s1) = elapsed {
       lines foreach { e =>
         pQueue.enqueue(e)
-//        pQueue2.add(e)
       } // sort in memory using priority queue
     }
     elapsedSorting += s1
 
     IO.overwrite(out) { writer =>
-      while (closedReaders.size < totalSize || pQueue.nonEmpty) {
+      while (closedReaders.size < totalSize || pQueue.notEmpty) {
         val ((v1, i1), s2) = elapsed(pQueue.dequeue())
         elapsedSorting += s2
 
@@ -146,4 +142,19 @@ object Sorter {
     println(s"merging - IO operations took ${elapsedIO}ms / ${elapsedIO / 1000.0}s")
     out
   }
+}
+
+class ScalaQueue[T](ord: Ordering[T]) {
+  val q  = new mutable.PriorityQueue[T]()(ord) // order by value, ascending
+  def notEmpty: Boolean = q.nonEmpty
+  def enqueue(e: T) = q.enqueue(e)
+  def dequeue() = q.dequeue()
+
+}
+
+class JavaQueue[T] {
+  val q = new PriorityQueue[T](100)
+  def notEmpty: Boolean = q.size > 0
+  def enqueue(e: T) = q.add(e)
+  def dequeue() = q.poll()
 }

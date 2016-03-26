@@ -37,7 +37,7 @@ object Main {
   val start = 1
   val stop = 10000000
   val linesPerChunk = 10000
-  val parallelism  = 2
+  val parallelism  = 8
 
   // val
   implicit val parallelSortEC = ExecutionContext.fromExecutor(java.util.concurrent.Executors.newFixedThreadPool(parallelism))
