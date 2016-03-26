@@ -1,6 +1,6 @@
 package lolski
 
-import java.io.{FileReader, BufferedReader, FileWriter, BufferedWriter}
+import java.io._
 import java.nio.file.{Paths, Files}
 
 /**
@@ -50,11 +50,17 @@ object IO {
     finally res.close()
   }
 
+  def readLine(path: String, offset: Long): (String, Long) = {
+    val access = new RandomAccessFile(new File(path), "r")
+    access.seek(offset)
+    val str = access.readLine()
+    (str, str.getBytes.length)
+  }
+
   def readLines(path: String): (BufferedReader, Iterator[String]) = {
     val reader = new BufferedReader(new FileReader(path))
     (reader, Iterator.continually(reader.readLine()).takeWhile(_!=null))
   }
-
 
   def delete(paths: Seq[String]): Unit = paths foreach { p => Files.delete(Paths.get(p))}
 }
