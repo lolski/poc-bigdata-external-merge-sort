@@ -34,9 +34,12 @@ object Main {
   val out = s"${tmp}/out.txt"
 
   // sorting params
+//  val start = 1
+//  val stop = 10000000
+//  val linesPerChunk = 10000
   val start = 1
-  val stop = 10000000
-  val linesPerChunk = 10000
+  val stop = 10
+  val linesPerChunk = 3
   val parallelism  = 8
 
   // val

@@ -4,7 +4,7 @@ import java.util.PriorityQueue
 
 import scala.collection._
 import scala.concurrent.{Future, ExecutionContext}
-
+import scala.math._
 /**
   * Created by lolski on 3/25/16.
   */
@@ -24,7 +24,8 @@ object Sorter {
 
     // merge sorted chunks using k-way merge algorithm
     val out_ = sortAsync map { case (sorted, _) =>
-      elapsed(mergeStep(sorted, out, linesPerChunk / sorted.size)) // how many reads & writes?
+      val n = max(1, linesPerChunk / sorted.size)
+      elapsed(mergeStep(sorted, out, n)) // how many reads & writes?
     }
     out_ onSuccess { case (_, t3) => println(s"merging took ${t3}ms / ${t3 / 1000.0}s") }
 
@@ -81,7 +82,6 @@ object Sorter {
     val totalSize = readers.size
     var closedReaders = mutable.Set[Int]()
     val pQueue  = new ScalaQueue[(Int, Int)](Ordering.by { case (v, i) => -v})
-//    val pQueue  = new JavaQueue[(Int, Int)]()
     // read first line from all chunks into (value, index)
     val (lines, io1) = elapsed {
       readers flatMap { case (h, it) =>
@@ -93,11 +93,10 @@ object Sorter {
 
     val (_, s1) = elapsed {
       lines foreach { e =>
-        pQueue.enqueue(e)
-      } // sort in memory using priority queue
+        pQueue.enqueue(e) // sort in memory using priority queue
+      }
     }
     elapsedSorting += s1
-
     IO.overwrite(out) { writer =>
       while (closedReaders.size < totalSize || pQueue.notEmpty) {
         val ((v1, i1), s2) = elapsed(pQueue.dequeue())
@@ -149,6 +148,7 @@ class ScalaQueue[T](ord: Ordering[T]) {
   def notEmpty: Boolean = q.nonEmpty
   def enqueue(e: T) = q.enqueue(e)
   def dequeue() = q.dequeue()
+  def size = q.size
 
 }
 
@@ -157,4 +157,5 @@ class JavaQueue[T] {
   def notEmpty: Boolean = q.size > 0
   def enqueue(e: T) = q.add(e)
   def dequeue() = q.poll()
+  def size = q.size
 }
