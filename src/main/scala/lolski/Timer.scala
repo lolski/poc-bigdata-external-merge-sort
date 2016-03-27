@@ -16,7 +16,6 @@ object Timer {
 
   def elapsedAsync[T](block: => Future[T])(implicit ec: ExecutionContext): Future[(T, Long)] = {
     val t1 = System.currentTimeMillis()
-    val res = block
     block map { res =>
       val t2 = System.currentTimeMillis()
       (res, t2 - t1)

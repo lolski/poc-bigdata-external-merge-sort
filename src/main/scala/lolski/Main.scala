@@ -34,12 +34,9 @@ object Main {
   val out = s"${tmp}/out.txt"
 
   // sorting params
-//  val start = 1
-//  val stop = 10000000
-//  val linesPerChunk = 10000
   val start = 1
-  val stop = 10
-  val linesPerChunk = 3
+  val stop = 10000004
+  val linesPerChunk = 10013
   val parallelism  = 8
 
   // val
@@ -47,7 +44,10 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     doWriteInput(in)
-    doSort(in, tmp, out) map { _ =>
+
+    val async = doSort(in, tmp, out)
+
+    async onSuccess { case _ =>
       doVerify(out)
     }
   }
@@ -58,15 +58,15 @@ object Main {
     println("writing input done.")
   }
 
-  def doSort(in: String, tmp: String, out: String): Future[Unit] = {
+  def doSort(in: String, tmp: String, out: String)(implicit ec: ExecutionContext): Future[Unit] = {
     println("sort procedure started...")
-    val async = Sorter.sort(in, tmp, out, linesPerChunk)
+    val async = Sort.sort(in, tmp, out, linesPerChunk)
     async map { _ => println("sort procedure done.") }
   }
 
   def doVerify(in: String): Unit = {
     val (h, it) = IO.readLines(in)
-    val ascending = NumGenerator.isAscOrdered(it)
+    val ascending = Tests.isAscIncrement(it) //
     println(s"verify if output is in ascending order: ${ascending}")
     h.close()
   }

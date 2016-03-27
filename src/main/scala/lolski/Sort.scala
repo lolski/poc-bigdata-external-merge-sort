@@ -1,7 +1,5 @@
 package lolski
 
-import java.util.PriorityQueue
-
 import scala.collection._
 import scala.concurrent.{Future, ExecutionContext}
 import scala.math._
@@ -9,7 +7,7 @@ import scala.math._
   * Created by lolski on 3/25/16.
   */
 
-object Sorter {
+object Sort {
   def sort(in: String, tmp: String, out: String, linesPerChunk: Int)
       (implicit ec: ExecutionContext): Future[String] = {
     import Timer.{elapsed, elapsedAsync}
@@ -141,21 +139,4 @@ object Sorter {
     println(s"merging - IO operations took ${elapsedIO}ms / ${elapsedIO / 1000.0}s")
     out
   }
-}
-
-class ScalaQueue[T](ord: Ordering[T]) {
-  val q  = new mutable.PriorityQueue[T]()(ord) // order by value, ascending
-  def notEmpty: Boolean = q.nonEmpty
-  def enqueue(e: T) = q.enqueue(e)
-  def dequeue() = q.dequeue()
-  def size = q.size
-
-}
-
-class JavaQueue[T] {
-  val q = new PriorityQueue[T](100)
-  def notEmpty: Boolean = q.size > 0
-  def enqueue(e: T) = q.add(e)
-  def dequeue() = q.poll()
-  def size = q.size
 }
