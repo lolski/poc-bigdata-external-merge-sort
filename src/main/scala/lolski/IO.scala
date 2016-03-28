@@ -63,4 +63,6 @@ object IO {
   }
 
   def delete(paths: Seq[String]): Unit = paths foreach { p => Files.delete(Paths.get(p))}
+
+  def getCwd = Paths.get("").toAbsolutePath.toString
 }

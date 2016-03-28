@@ -1,9 +1,6 @@
 package lolski
 
-import java.io.{BufferedInputStream, FileWriter}
-import java.nio.file.{Paths, Files}
-import java.util.concurrent.ExecutorService
-
+import java.util.concurrent._
 import scala.concurrent.{Future, ExecutionContext}
 
 /**
@@ -27,40 +24,43 @@ import scala.concurrent.{Future, ExecutionContext}
   *  - we decide on using external merge sort
   */
 
-object Main {
+object AppConf {
   // input
-  val tmp = "/Users/lolski/Playground/tremorvideo-problem1-part1/in"
-  val in = s"${tmp}/in.txt"
-  val out = s"${tmp}/out.txt"
+  val baseTmp       = s"${IO.getCwd}/in"
+  val in            = s"${baseTmp}/in.txt" // input file (unsorted)
+  val out           = s"${baseTmp}/out.txt" // output file (sorted)
 
   // sorting params
-  val start = 1
-  val stop = 10000004
+  val start         = 1
+  val stop          = 10000004
   val linesPerChunk = 10013
-  val parallelism  = 8
+  val parallelism   = 8
 
-  // val
-  implicit val parallelSortEC = ExecutionContext.fromExecutor(java.util.concurrent.Executors.newFixedThreadPool(parallelism))
+}
+
+object Main {
+  val threadPool = Executors.newFixedThreadPool(AppConf.parallelism)
+  implicit val parallelSortEC = ExecutionContext.fromExecutor(threadPool)
 
   def main(args: Array[String]): Unit = {
-    doWriteInput(in)
+    doWriteInput(AppConf.in)
 
-    val async = doSort(in, tmp, out)
+    val async = doSort(AppConf.in, AppConf.baseTmp, AppConf.out)
 
     async onSuccess { case _ =>
-      doVerify(out)
+      doVerify(AppConf.out)
     }
   }
 
   def doWriteInput(in: String): Unit = {
     println("writing input started...")
-    IO.writeShuffled(start, stop, in)
+    IO.writeShuffled(AppConf.start, AppConf.stop, in)
     println("writing input done.")
   }
 
   def doSort(in: String, tmp: String, out: String)(implicit ec: ExecutionContext): Future[Unit] = {
     println("sort procedure started...")
-    val async = Sort.sort(in, tmp, out, linesPerChunk)
+    val async = Sort.sort(in, tmp, out, AppConf.linesPerChunk)
     async map { _ => println("sort procedure done.") }
   }
 
