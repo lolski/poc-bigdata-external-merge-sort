@@ -1,6 +1,5 @@
 package lolski
 
-import lolski.Helpers.Timer
 import lolski.Queue.ScalaQueue
 import scala.collection._
 import scala.concurrent.{Future, ExecutionContext}
@@ -10,29 +9,25 @@ import scala.math._
   */
 
 object ExternalMergeSort {
-  def sort(in: String, tmp: String, out: String, linesPerChunk: Int)
+  def sort(input: String, tmpDir: String, output: String, linesPerChunk: Int)
       (implicit ec: ExecutionContext): Future[String] = {
-    import Timer.{elapsed, elapsedAsync}
 
     // split file into n chunks
-    val (chunks, t1) = elapsed(splitStep(in, linesPerChunk, tmp))
-    println(s"splitting - took ${t1}ms / ${t1 / 1000.0}s")
+    val chunks = splitStep(input, linesPerChunk, tmpDir)
 
-    // sort each chunk locally
-    val sortAsync = elapsedAsync(sortStep(chunks))
-    sortAsync onSuccess { case (_, t2) => println(s"sorting - took ${t2}ms / ${t2 / 1000.0}s") }
+    // sort each chunk locally, in parallel
+    val sortAsync = sortStep(chunks)
 
     // merge sorted chunks using k-way merge algorithm
-    val out_ = sortAsync map { case (sorted, _) =>
+    val merge = sortAsync map { sorted =>
       val n = max(1, linesPerChunk / sorted.size) // n should be between 1 to linesPerChunk / sorted.size
-      elapsed(mergeStep(sorted, out, n))
+      mergeStep(sorted, output, n)
     }
-    out_ onSuccess { case (_, t3) => println(s"merging - overall took ${t3}ms / ${t3 / 1000.0}s") }
 
     // clean up
-    out_ onSuccess { case _ => IO.delete(chunks) }
+    merge onSuccess { case _ => IO.delete(chunks) }
 
-    out_ map { case (path, _) => path }
+    merge
   }
 
   def splitStep(in: String, linesPerChunk: Int, tmp: String): Seq[String] = {
@@ -45,33 +40,28 @@ object ExternalMergeSort {
       out
     }
 
-    val res = chunks.toList
     handle.close()
-    res
+
+    chunks toList
   }
 
+  // sort in memory
+  // must limit the number of instance being processed concurrently to prevent OutOfMemoryException
   def sortStep(chunks: Seq[String])(implicit ec: ExecutionContext): Future[Seq[String]] = {
-    // sort in memory
-    // must limit the number of instance being processed concurrently to prevent OutOfMemoryException
     val async  = chunks map { path => Future(sortChunk(path)) }
     val joined = Future.sequence(async)
     joined
   }
 
   def sortChunk(path: String): String = {
-    val (handle, lines) = IO.readLines(path) // 1 full pass to read
-    val it = lines.toArray.map(_.toInt) // read
+    val (handle, lines) = IO.readLines(path)
+    val it = lines.toArray.map(_.toInt)
     handle.close() // clean up
     IO.writeSeq(it.sorted.map(_.toString), path, true) // 1 pass to write
   }
 
-  // k-way merging
+  // using k-way merging algorithm to merge sorted chunks
   def mergeStep(chunks: Seq[String], out: String, linesPerChunk: Int): String = {
-    // instrumentation
-    import Timer.elapsed
-    var elapsedSorting = 0L // accumulate time spent on actual sorting
-    var elapsedIO      = 0L // accumulate time spent on IO
-
     // initialize variables - priority queue, file readers
     val readers = chunks.zipWithIndex map { case (chunk, id) =>
       val (handle, it) = IO.readLines(chunk)
@@ -81,54 +71,43 @@ object ExternalMergeSort {
     } toVector
     val totalSize = readers.size
     var closedReaders = mutable.Set[Int]()
-    val pQueue  = new ScalaQueue[(Int, Int)](Ordering.by { case (v, i) => -v})
-    // read first line from all chunks into (value, index)
-    val (lines, io1) = elapsed {
-      readers flatMap { case (h, it) =>
+    // the priority queue stores (Int, Int), i.e., the actual value as well as the chunk id where it resides in
+    // a crucial part of the k-way merge algorithm is to advance the reader of a particular chunk reader
+    // after an element has been dequeued from the queue, hence why we store the chunk id along with the actual element
+    val sortedQueue = new ScalaQueue[(Int, Int)](Ordering.by { case (v, i) => -v})
+
+    // initialize the priority queue with the first lines of each chunks
+    val lines = readers flatMap { case (_, it) =>
         val tmp = it.take(linesPerChunk).map { case (v, i) => (v.toInt, i) }
         tmp toSeq
       }
-    }
-    elapsedIO += io1
+    lines foreach { e => sortedQueue.enqueue(e) }
 
-    val (_, s1) = elapsed {
-      lines foreach { e =>
-        pQueue.enqueue(e) // sort in memory using priority queue
-      }
-    }
-    elapsedSorting += s1
+    // then, iterate over the rest of the chunks and put values into the priority queue,
+    // before finally writing the sorted data to 'out'
     IO.overwrite(out) { writer =>
-      while (closedReaders.size < totalSize || pQueue.notEmpty) {
-        val ((v1, i1), s2) = elapsed(pQueue.dequeue())
-        elapsedSorting += s2
+      while (closedReaders.size < totalSize || sortedQueue.notEmpty) {
+        // dequeue an element 'v1' and write it to 'out'
+        val (e, chunkId) = sortedQueue.dequeue()
+        writer.write(s"$e")
+        writer.newLine()
 
-        // write to out
-        val (_, io2) = elapsed {
-          writer.write(s"$v1")
-          writer.newLine()
-        }
-        elapsedIO += io2
+        // then read the next line from chunk 'chunkId' put them in the priority queue
+        val next = readers(chunkId)._2
+          .map { case (v, i) => (v.toInt, i) }
+          .toSeq
+        next foreach { e => sortedQueue.enqueue(e) }
 
-        val (next, io3) = elapsed {
-          readers(i1)
-            ._2
-            .take(linesPerChunk)
-            .map { case (v, i) => (v.toInt, i) }
-            .toSeq
-        }
-        elapsedIO += io3
-
-        val (_, s3) = elapsed(next foreach { e => pQueue.enqueue(e) })
-        elapsedSorting += s3
-
-        val it     = readers(i1)._2
-        val handle = readers(i1)._1
+        // check if chunk 'chunkId' has been fully processed
+        // if it has, close the reader and store the id in 'closedReaders'
+        val it     = readers(chunkId)._2
+        val handle = readers(chunkId)._1
         if (it.isEmpty) {
           // close reader and put the id in closedReaders set
-          val alreadyClosed = closedReaders.contains(i1)
+          val alreadyClosed = closedReaders.contains(chunkId)
           if (!alreadyClosed) {
             handle.close()
-            closedReaders += i1
+            closedReaders += chunkId
           }
           else {
             // do nothing, reader is already closed
@@ -137,8 +116,6 @@ object ExternalMergeSort {
       }
     }
 
-    println(s"merging - CPU took ${elapsedSorting}ms / ${elapsedSorting / 1000.0}s")
-    println(s"merging - IO took ${elapsedIO}ms / ${elapsedIO / 1000.0}s")
     out
   }
 }
