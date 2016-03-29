@@ -8,6 +8,15 @@ import java.nio.file.{Paths, Files}
   */
 
 object IO {
+  object NumGenerator {
+    // helpers for generating number
+    def shuffledOrder(start: Int, end: Int): Seq[Int] = scala.util.Random.shuffle(ascOrder(start, end))
+
+    def ascOrder(start: Int, end: Int): Seq[Int] = start to end
+
+    def descOrder(start: Int, end: Int): Seq[Int] = end to start by -1
+  }
+
   def writeShuffled(from: Int, to: Int, path: String): Unit = overwrite(path) { in =>
     val numbers = NumGenerator.shuffledOrder(from, to)
     numbers.foreach { e =>

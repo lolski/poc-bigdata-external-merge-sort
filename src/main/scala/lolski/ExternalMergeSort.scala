@@ -1,5 +1,7 @@
 package lolski
 
+import lolski.Helpers.Timer
+import lolski.Queue.ScalaQueue
 import scala.collection._
 import scala.concurrent.{Future, ExecutionContext}
 import scala.math._
@@ -7,25 +9,25 @@ import scala.math._
   * Created by lolski on 3/25/16.
   */
 
-object Sort {
+object ExternalMergeSort {
   def sort(in: String, tmp: String, out: String, linesPerChunk: Int)
       (implicit ec: ExecutionContext): Future[String] = {
     import Timer.{elapsed, elapsedAsync}
 
     // split file into n chunks
-    val (chunks, t1) = elapsed(splitStep(in, linesPerChunk, tmp)) // 1 full pass to read and write
-    println(s"splitting took ${t1}ms / ${t1 / 1000.0}s")
+    val (chunks, t1) = elapsed(splitStep(in, linesPerChunk, tmp))
+    println(s"splitting - took ${t1}ms / ${t1 / 1000.0}s")
 
     // sort each chunk locally
     val sortAsync = elapsedAsync(sortStep(chunks))
-    sortAsync onSuccess { case (_, t2) => println(s"local sorting took ${t2}ms / ${t2 / 1000.0}s") }
+    sortAsync onSuccess { case (_, t2) => println(s"sorting - took ${t2}ms / ${t2 / 1000.0}s") }
 
     // merge sorted chunks using k-way merge algorithm
     val out_ = sortAsync map { case (sorted, _) =>
-      val n = max(1, linesPerChunk / sorted.size)
-      elapsed(mergeStep(sorted, out, n)) // how many reads & writes?
+      val n = max(1, linesPerChunk / sorted.size) // n should be between 1 to linesPerChunk / sorted.size
+      elapsed(mergeStep(sorted, out, n))
     }
-    out_ onSuccess { case (_, t3) => println(s"merging took ${t3}ms / ${t3 / 1000.0}s") }
+    out_ onSuccess { case (_, t3) => println(s"merging - overall took ${t3}ms / ${t3 / 1000.0}s") }
 
     // clean up
     out_ onSuccess { case _ => IO.delete(chunks) }
@@ -67,8 +69,8 @@ object Sort {
   def mergeStep(chunks: Seq[String], out: String, linesPerChunk: Int): String = {
     // instrumentation
     import Timer.elapsed
-    var elapsedSorting = 0L
-    var elapsedIO      = 0L
+    var elapsedSorting = 0L // accumulate time spent on actual sorting
+    var elapsedIO      = 0L // accumulate time spent on IO
 
     // initialize variables - priority queue, file readers
     val readers = chunks.zipWithIndex map { case (chunk, id) =>
@@ -135,8 +137,8 @@ object Sort {
       }
     }
 
-    println(s"merging - CPU operations took ${elapsedSorting}ms / ${elapsedSorting / 1000.0}s")
-    println(s"merging - IO operations took ${elapsedIO}ms / ${elapsedIO / 1000.0}s")
+    println(s"merging - CPU took ${elapsedSorting}ms / ${elapsedSorting / 1000.0}s")
+    println(s"merging - IO took ${elapsedIO}ms / ${elapsedIO / 1000.0}s")
     out
   }
 }

@@ -43,31 +43,12 @@ object Main {
   implicit val parallelSortEC = ExecutionContext.fromExecutor(threadPool)
 
   def main(args: Array[String]): Unit = {
-    doWriteInput(AppConf.in)
+    println(s"start sorting file ${AppConf.in}...")
 
-    val async = doSort(AppConf.in, AppConf.baseTmp, AppConf.out)
+    val async = ExternalMergeSort.sort(AppConf.in, AppConf.baseTmp, AppConf.out, AppConf.linesPerChunk)
 
     async onSuccess { case _ =>
-      doVerify(AppConf.out)
+      println(s"sorted file saved in ${AppConf.out}")
     }
-  }
-
-  def doWriteInput(in: String): Unit = {
-    println("writing input started...")
-    IO.writeShuffled(AppConf.start, AppConf.stop, in)
-    println("writing input done.")
-  }
-
-  def doSort(in: String, tmp: String, out: String)(implicit ec: ExecutionContext): Future[Unit] = {
-    println("sort procedure started...")
-    val async = Sort.sort(in, tmp, out, AppConf.linesPerChunk)
-    async map { _ => println("sort procedure done.") }
-  }
-
-  def doVerify(in: String): Unit = {
-    val (h, it) = IO.readLines(in)
-    val ascending = Tests.isAscIncrement(it) //
-    println(s"verify if output is in ascending order: ${ascending}")
-    h.close()
   }
 }
