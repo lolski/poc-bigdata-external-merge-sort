@@ -38,11 +38,11 @@ object ExternalMergeSort {
       val out = s"$tmp/chunk-$id"
       IO.writeSeq(chunk, out, true)
       out
-    }
+    } toList
 
     handle.close()
 
-    chunks toList
+    chunks
   }
 
   // sort in memory
