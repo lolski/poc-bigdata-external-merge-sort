@@ -1,19 +1,25 @@
-Problem set 1, part 1
+# External Merge Sort #
 
-Main assumptions:
-  - input size is 300 million integer, requires 9.6GB space excluding overheads (int is 32 bit). won't fit in main memory
-  - input from file, I/O needed
-  
-Design decisions:
-  - Output is written to a new file instead of overwriting the input.
-      The reason is to prevent losing / corrupting the input file in case of failure (e.g., sorting crashed while in the middle of writing)
-  - Some form of external sorting since input is assumed to be large
-    - Minimize number of I/O accesses (e.g., by minimizing the number of reading / writing pass)
-    - Optimize I/O using buffering
-    - Minimize memory buffer
+Common sorting algorithm assumes that the items to be sorted are small enough and can fit in the main memory. However, in big data there are often situation where the items are so large that they won't fit. This is a practice of implementing the *external merge sort* algorithm which utilizes disk in order to avoid running out of memory.
 
-Implementation:
-  - we decide on using external merge sort
+## Running The Program ##
 
-Limitations:
-  - Minimize open file at a time
+### Requirements ###
+1. SBT 0.13.8
+2. Java(TM) SE Runtime Environment 1.8.0_74
+3. Scala 2.10.6
+
+### Input Files ###
+
+1. The input file is files/in.txt. It contains large numbers generated randomly.
+2. After a run, the output will be under files/out.txt. This file must be deleted before a subsequent run.
+
+### Steps ###
+```
+#!bash
+
+git clone https://github.com/lolski/practice-external-merge-sort-algo.git
+cd practice-external-merge-sort-algo
+rm -f files/out.txt  # DELETE 'out.txt' before executing a run
+sbt run
+```
