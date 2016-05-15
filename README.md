@@ -16,8 +16,6 @@ Common sorting algorithm assumes that the items to be sorted are small enough an
 
 ### Steps ###
 ```
-#!bash
-
 git clone https://github.com/lolski/practice-bigdata-external-merge-sort.git
 cd practice-bigdata-external-merge-sort
 rm -f files/out.txt  # DELETE 'out.txt' before executing a run
