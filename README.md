@@ -18,8 +18,8 @@ Common sorting algorithm assumes that the items to be sorted are small enough an
 ```
 #!bash
 
-git clone https://github.com/lolski/practice-external-merge-sort-algo.git
-cd practice-external-merge-sort-algo
+git clone https://github.com/lolski/practice-bigdata-external-merge-sort.git
+cd practice-bigdata-external-merge-sort
 rm -f files/out.txt  # DELETE 'out.txt' before executing a run
 sbt run
 ```
